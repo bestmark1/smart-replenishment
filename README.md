@@ -1,123 +1,137 @@
 # Smart Replenishment
 
-Demand forecasting and inventory replenishment support system in retail using the M5 Forecasting Accuracy dataset.
+Система прогнозирования спроса и поддержки решений о пополнении запасов в ритейле на наборе данных M5 Forecasting Accuracy.
 
 ---
 
-## 1. Project Overview
+## 1. О проекте
 
-This project implements an end-to-end Data Science pipeline that predicts daily sales demand at the `store × item` level for the next 28 days and estimates optimal replenishment orders. It helps supply chain managers minimize lost sales and holding costs under realistic constraints.
+Проект реализует полный Data Science-цикл: подготавливает витрину ежедневных продаж на уровне `магазин × товар`, прогнозирует спрос на следующие 28 дней и оценивает сценарный риск дефицита. Результат предназначен для менеджера пополнения запасов: он видит прогноз, фактический спрос на тестовом периоде и позиции с наибольшим приоритетом.
 
-### Key Results
-* **Champion Model:** LightGBM (WMAPE: **62.99%**, Mean RMSSE: **0.9268**) on the final untouched test horizon.
-* **Baseline (SBA):** WMAPE: **69.70%**, Mean RMSSE: **0.9806**.
-* **Statistical Significance:** Paired Wilcoxon signed-rank test $p-value \approx 8.06 \times 10^{-74}$, proving LightGBM significantly outperforms baseline.
-* **Replenishment Impact:** Generated a simulated service level of **85.04%** across 5,748 items in California.
+Это учебный проект на обезличенных данных M5, а не производственная система Walmart. В датасете отсутствуют фактические остатки и закупочная себестоимость, поэтому блок пополнения — прозрачная симуляция с настраиваемыми допущениями, а не утверждение об «оптимальном заказе» для реального бизнеса.
+
+### Ключевые результаты
+
+- **Финальная модель:** LightGBM; WMAPE **62,99%**, средний RMSSE **0,9268** на отложенном 28-дневном тестовом горизонте.
+- **Лучший baseline:** SBA (Syntetos–Boylan Approximation); WMAPE **69,70%**, средний RMSSE **0,9806**.
+- **Статистическое сравнение:** парный критерий Уилкоксона дал `p ≈ 8,07 × 10⁻⁷⁴`; bootstrap 95% CI улучшения WMAPE: `[5,27; 6,46]` п.п.
+- **Сценарий пополнения:** service level **85,04%** для 5 748 товарных позиций в выбранном scope Калифорнии. Это результат симулятора, не измерение реальных складских остатков.
 
 ---
 
-## 2. Architecture & Pipeline Flow
+## 2. Архитектура и путь данных
 
 ```text
-M5 CSV (Zenodo mirror)
+M5 CSV (зеркало Zenodo)
    └── data/raw/m5
-        └── quality.py (Data Quality Audit) -> reports/data_quality.json
-             └── mart.py (Reshaping & Ingestion) -> data/processed/smart_replenishment.db (DuckDB)
-                  └── build.py (Feature Engineering)
-                       └── backtest.py (3-Fold Rolling Validation)
-                            └── statistics.py (Bootstrap & Wilcoxon Tests)
-                                 └── inventory.py (Replenishment Simulation)
-                                      ├── api/main.py (FastAPI Server)
-                                      └── dashboard/app.py (Streamlit UI)
+        └── quality.py: аудит качества → reports/data_quality.json
+             └── mart.py: подготовка DuckDB-витрины → data/processed/smart_replenishment.db
+                  └── build.py: создание lag- и rolling-признаков
+                       └── backtest.py: rolling validation на трёх временных fold
+                            └── statistics.py: bootstrap и критерий Уилкоксона
+                                 └── inventory.py: симулятор политики пополнения
+                                      ├── FastAPI
+                                      └── Streamlit dashboard
 ```
 
 ---
 
-## 3. Repository Structure
+## 3. Структура репозитория
 
 ```text
 smart-replenishment/
   README.md
-  pyproject.toml              # Dependencies and Ruff config
-  Makefile                    # CLI runner shortcuts
-  .gitignore
-  configs/base.yaml           # Pipeline settings
+  pyproject.toml              # зависимости и настройки Ruff
+  Makefile                    # короткие команды для пайплайна
+  configs/base.yaml           # параметры пайплайна
   src/smart_replenishment/
-    cli.py                    # Entrypoint CLI
-    config.py                 # Configuration loader
-    data/                     # Ingestion, quality, and DuckDB mart
-    features/                 # Lag and rolling feature building
-    models/                   # Naive, Croston/SBA, LGBM, CatBoost
-    evaluation/               # Metrics, Backtest, Wilcoxon/Bootstrap stats
-    simulation/               # Replenishment policy simulation
+    data/                     # загрузка, аудит и DuckDB-витрина
+    features/                 # lag- и rolling-признаки
+    models/                   # naive, Croston/SBA, LightGBM, CatBoost
+    evaluation/               # метрики, backtest, bootstrap, Wilcoxon
+    simulation/               # политика пополнения
     api/                      # FastAPI endpoints
-    dashboard/                # Streamlit app
-  notebooks/                  # Jupyter notebooks for EDA and model analysis
-  tests/                      # pytest unit tests
-  docs/                       # Decisions, data dictionary, deployment, rubric
+    dashboard/                # Streamlit UI
+  notebooks/                  # EDA и анализ моделей
+  tests/                      # pytest unit-тесты
+  docs/                       # методология, словарь данных и доказательства по рубрике
 ```
 
 ---
 
-## 4. Setup & Ingestion
+## 4. Установка и подготовка данных
 
-### Local Environment Setup
-1. Clone the repository and navigate into it:
-   ```bash
-   cd smart-replenishment
-   ```
-2. Create and activate a virtual environment:
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
-   ```
-3. Install package and dependencies:
-   ```bash
-   make setup
-   ```
+### Локальное окружение
 
-### Running the End-to-End Pipeline
-To download the dataset, run quality checks, create the DuckDB database, train models, select the champion, and run the inventory simulation, execute:
+```bash
+git clone https://github.com/bestmark1/smart-replenishment.git
+cd smart-replenishment
+python3 -m venv .venv
+source .venv/bin/activate
+make setup
+```
+
+### Полный пайплайн
+
+Исходные M5-файлы скачиваются в `data/raw/m5/` и не попадают в Git. Чтобы выполнить загрузку, проверку качества и создание DuckDB-витрины:
+
 ```bash
 make pipeline
 python -m smart_replenishment.cli train
 python -m smart_replenishment.cli evaluate
 python -m smart_replenishment.cli simulate
 ```
-Alternatively, run everything with a single command:
+
+Альтернативно можно запустить весь цикл одной командой:
+
 ```bash
 python -m smart_replenishment.cli run-all
 ```
 
 ---
 
-## 5. API & Dashboard Services
+## 5. API и дашборд
 
-### Run FastAPI Server
-Start the API locally:
+### FastAPI
+
 ```bash
 make run-api
 ```
-Query endpoints:
-* **Health:** `curl http://localhost:8000/health`
-* **Replenishment Priorities:** `curl http://localhost:8000/priorities?store_id=CA_1&limit=5`
-* **Series Forecast:** `curl http://localhost:8000/forecast/FOODS_3_120_CA_1`
 
-### Run Streamlit App
-Start the UI:
+- Healthcheck: `curl http://localhost:8000/health`
+- Приоритеты пополнения: `curl 'http://localhost:8000/priorities?store_id=CA_1&limit=5'`
+- Прогноз ряда: `curl http://localhost:8000/forecast/FOODS_3_120_CA_1`
+
+### Streamlit dashboard
+
 ```bash
 make run-app
 ```
-*Open `http://localhost:8501` to view metrics, priority tables, and forecasts.*
 
-### Containerized Run (Docker Compose)
-If the Docker daemon is active on your host:
+Откройте `http://localhost:8501`: интерфейс показывает метрики, приоритеты пополнения и прогноз выбранного товара.
+
+### Локальный запуск в Docker
+
 ```bash
 make compose-up
 ```
 
+Docker-контейнеры получают готовые прогнозы через read-only mount `data/processed/`; они не запускают обучение модели.
+
 ---
 
-## 6. Running Tests & Linters
-* **Unit Tests:** `make test`
-* **Code Style check:** `ruff check` and `ruff format`
+## 6. Проверки качества
+
+```bash
+make test
+ruff check .
+ruff format --check .
+```
+
+Тесты покрывают baseline-модели, WMAPE/RMSSE и health endpoint API. Методология, ограничения, словарь данных и соответствие критериям оценки находятся в [`docs/`](docs/).
+
+---
+
+## 7. Деплой на VPS
+
+Для VPS с ограниченной RAM обучение выполняется локально; сервер получает только Docker-образ и два готовых Parquet-артефакта. Полный повторяемый сценарий, требования к DNS и проверка после выкладки описаны в [`docs/deployment.md`](docs/deployment.md).

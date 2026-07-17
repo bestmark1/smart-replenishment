@@ -2,19 +2,20 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies needed for compiling some packages
+# Runtime dependencies for LightGBM.
 RUN apt-get update && apt-get install -y \
-    build-essential \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy packaging configuration and install dependencies
-COPY pyproject.toml README.md ./
-RUN pip install --no-cache-dir .
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 
-# Copy source code and config
-COPY configs/base.yaml configs/base.yaml
+# The package must be present before installation. Installing before copying src/
+# produces an image where uvicorn cannot import smart_replenishment.
+COPY pyproject.toml README.md ./
 COPY src/ src/
+COPY configs/ configs/
+RUN pip install --no-cache-dir .
 
 # Expose ports for both FastAPI and Streamlit
 EXPOSE 8000
