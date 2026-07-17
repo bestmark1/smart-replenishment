@@ -1,0 +1,23 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app/src
+
+# The VPS is inference-only: it reads two Parquet artifacts and serves the API
+# and dashboard. Training libraries (LightGBM, CatBoost, SciPy, DuckDB) are
+# intentionally excluded to keep the image and its runtime memory footprint low.
+RUN pip install --no-cache-dir \
+    "fastapi>=0.100.0" \
+    "pandas>=2.0.0" \
+    "plotly>=5.15.0" \
+    "pyarrow>=14.0.0" \
+    "streamlit>=1.24.0" \
+    "uvicorn>=0.22.0"
+
+COPY src/ src/
+
+EXPOSE 8000
+EXPOSE 8501

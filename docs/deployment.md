@@ -23,10 +23,10 @@ https://smart-replenishment.185.79.138.118.nip.io
 
 ## Локальная сборка образа
 
-VPS использует `x86_64`; на Mac с Apple Silicon образ надо собирать под `linux/amd64`:
+VPS использует `x86_64`; на Mac с Apple Silicon runtime-образ надо собирать под `linux/amd64`:
 
 ```bash
-docker buildx build --platform linux/amd64 --load -t smart-replenishment:latest .
+docker buildx build --platform linux/amd64 --file Dockerfile.vps --load -t smart-replenishment:latest .
 docker image save smart-replenishment:latest | gzip > /tmp/smart-replenishment-image.tar.gz
 ```
 
