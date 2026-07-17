@@ -1,74 +1,35 @@
-# Деплой на VPS без обучения модели
+# Подготовка к деплою на отдельный VPS
 
-## Назначение
+## Принцип
 
-В продакшен попадает только inference-контур: FastAPI, Streamlit и два готовых Parquet-файла. M5-датасет, DuckDB-витрина и обучение моделей на VPS не хранятся и не запускаются. Это принципиально для небольшой VPS: обучение на миллионах строк требует существенно больше RAM, чем показ дашборда и чтение 4 МБ готовых прогнозов.
+В production попадает только inference-контур: FastAPI, Streamlit и два готовых Parquet-файла. M5-датасет, DuckDB-витрина и обучение моделей на VPS не хранятся и не запускаются. Это необходимо для небольшой VPS: обучение на миллионах строк требует существенно больше RAM, чем чтение готовых прогнозов.
 
-## Что требуется до выкладки
+## Что требуется определить до выкладки
 
-1. DNS-запись `A` для `replenishment.fitmentor-ai.ru` должна указывать на VPS. Без неё Caddy не сможет выпустить HTTPS-сертификат.
-2. На VPS должен существовать Docker network `fitmentor_default`: она уже используется reverse proxy Caddy.
-3. Локально должны быть актуальные артефакты:
+1. SSH-алиас или IP **целевого** сервера.
+2. Домен/поддомен и доступ к его DNS-зоне для HTTPS.
+3. Доступные RAM, диск, Docker и reverse proxy на целевом сервере.
+4. Свободный внутренний Docker network или отдельный reverse proxy; нельзя копировать имя сети, Caddyfile и порты от другого production-проекта.
+5. Актуальные локальные артефакты:
    - `data/processed/final_test_forecast.parquet`;
    - `data/processed/priority_results.parquet`.
-4. Docker-образ необходимо собрать локально под архитектуру VPS (`linux/amd64`). Не собирайте и не обучайте модель на VPS.
 
-## Локальная подготовка образа
+## Локальная подготовка
 
-На Apple Silicon обязательно укажите архитектуру VPS:
+На Apple Silicon образ для типичной x86_64 VPS необходимо собирать под её архитектуру:
 
 ```bash
 docker buildx build --platform linux/amd64 --load -t smart-replenishment:latest .
 docker image save smart-replenishment:latest | gzip > /tmp/smart-replenishment-image.tar.gz
 ```
 
-`docker image save` создаёт переносимый архив образа, а `docker image load` восстанавливает его на VPS. Не включайте в образ папку `data/`: `.dockerignore` специально исключает исходные данные и артефакты.
+`docker image save` создаёт переносимый архив образа, а `docker image load` восстанавливает его на VPS. `.dockerignore` исключает исходные данные и артефакты из образа: их передают отдельным read-only volume.
 
-## Передача на VPS
+## Обязательная проверка после выкладки
 
-```bash
-ssh my-vps 'mkdir -p /opt/smart-replenishment/data/processed'
+1. Контейнеры запущены и имеют status `healthy`.
+2. Внутренний `GET /health` API подтверждает, что оба Parquet-артефакта загружены.
+3. Публичный HTTPS-URL открывается, фильтры дашборда и график SKU работают в браузере.
+4. На сервере не выполнялись команды обучения, а исходный M5-датасет отсутствует.
 
-scp /tmp/smart-replenishment-image.tar.gz my-vps:/tmp/
-scp docker-compose.vps.yml my-vps:/opt/smart-replenishment/docker-compose.yml
-scp data/processed/final_test_forecast.parquet my-vps:/opt/smart-replenishment/data/processed/
-scp data/processed/priority_results.parquet my-vps:/opt/smart-replenishment/data/processed/
-
-ssh my-vps '
-  docker image load -i /tmp/smart-replenishment-image.tar.gz &&
-  rm /tmp/smart-replenishment-image.tar.gz &&
-  cd /opt/smart-replenishment &&
-  docker compose up -d
-'
-```
-
-## Reverse proxy
-
-`deploy/Caddyfile.fragment` содержит отдельный virtual host для дашборда. Его блок нужно добавить в `/opt/FitMentor/Caddyfile` **только после появления DNS-записи**, затем проверить конфигурацию внутри контейнера и мягко перезагрузить Caddy:
-
-```bash
-docker exec fitmentor_caddy caddy validate --config /etc/caddy/Caddyfile
-docker exec fitmentor_caddy caddy reload --config /etc/caddy/Caddyfile
-```
-
-Контейнеры Smart Replenishment не открывают внешние порты. Caddy получает к ним доступ по внутренней Docker network `fitmentor_default`; наружу остаются доступны только 80/443.
-
-## Проверка после выкладки
-
-```bash
-ssh my-vps 'cd /opt/smart-replenishment && docker compose ps'
-ssh my-vps 'docker exec smart_replenishment_api python -c "import urllib.request; print(urllib.request.urlopen(\"http://127.0.0.1:8000/health\").read().decode())"'
-curl --fail --silent --show-error https://replenishment.fitmentor-ai.ru/_stcore/health
-```
-
-После этого откройте публичный URL в браузере, переключите магазин и департамент, выберите SKU и убедитесь, что отрисовался график. Проверьте также, что FitMentor продолжает отвечать на свой health endpoint.
-
-## Откат
-
-Если новый проект влияет на память или Caddy не может получить сертификат:
-
-```bash
-ssh my-vps 'cd /opt/smart-replenishment && docker compose down'
-```
-
-Удалите только добавленный блок `replenishment.fitmentor-ai.ru` из Caddyfile и перезагрузите Caddy. Не выполняйте `docker system prune` и не перезапускайте весь `/opt/FitMentor` ради этого проекта.
+Точные Compose- и reverse-proxy-конфигурации создаются только после аудита целевого сервера.
