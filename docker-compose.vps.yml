@@ -1,0 +1,56 @@
+services:
+  api:
+    image: smart-replenishment:${IMAGE_TAG:-latest}
+    container_name: smart_replenishment_api
+    command: uvicorn smart_replenishment.api.main:app --host 0.0.0.0 --port 8000
+    restart: unless-stopped
+    mem_limit: 256m
+    volumes:
+      - ./data/processed:/app/data/processed:ro
+    healthcheck:
+      test:
+        ["CMD", "python", "-c", "import json, urllib.request; d=json.load(urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)); assert d['status'] == 'ok' and d['forecast_data_loaded'] and d['priorities_data_loaded']"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  dashboard:
+    image: smart-replenishment:${IMAGE_TAG:-latest}
+    container_name: smart_replenishment_dashboard
+    command: streamlit run src/smart_replenishment/dashboard/app.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true
+    restart: unless-stopped
+    mem_limit: 384m
+    volumes:
+      - ./data/processed:/app/data/processed:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      default:
+      web_gateway:
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: web_gateway
+      traefik.http.middlewares.smart-replenishment-redirect.redirectscheme.permanent: "true"
+      traefik.http.middlewares.smart-replenishment-redirect.redirectscheme.scheme: https
+      traefik.http.routers.smart-replenishment-http.entrypoints: web
+      traefik.http.routers.smart-replenishment-http.middlewares: smart-replenishment-redirect
+      traefik.http.routers.smart-replenishment-http.rule: "Host(`${APP_HOST:?APP_HOST is required}`)"
+      traefik.http.routers.smart-replenishment.entrypoints: websecure
+      traefik.http.routers.smart-replenishment.middlewares: security-headers@file
+      traefik.http.routers.smart-replenishment.rule: "Host(`${APP_HOST:?APP_HOST is required}`)"
+      traefik.http.routers.smart-replenishment.service: smart-replenishment
+      traefik.http.routers.smart-replenishment.tls.certresolver: letsencrypt
+      traefik.http.services.smart-replenishment.loadbalancer.server.port: "8501"
+
+networks:
+  web_gateway:
+    external: true
+    name: web_gateway
