@@ -1,0 +1,18 @@
+data:
+  zenodo_zip_url: "https://zenodo.org/records/12636070/files/m5-forecasting-accuracy.zip"
+  raw_dir: "data/raw/m5"
+  db_path: "data/processed/smart_replenishment.db"
+  state_id: "CA"
+  cat_id: "FOODS"
+
+modeling:
+  val_folds: 3
+  horizon: 28
+  seed: 42
+
+inventory:
+  review_period: 1        # daily review (days)
+  lead_time: 7            # lead time (days)
+  holding_cost: 0.05      # holding cost per unit per day as fraction of price
+  stockout_penalty: 1.5   # stockout penalty per unit as multiplier of retail price
+  initial_stock: 10       # default initial stock level for simulation

@@ -1,0 +1,21 @@
+{
+    "champion_model": "lgbm",
+    "test_horizon": "28 days",
+    "champion": {
+        "wmape": 0.6299151508031962,
+        "rmsse": 0.9268094112824159
+    },
+    "baseline_sba": {
+        "wmape": 0.6970139982099177,
+        "rmsse": 0.9806116508444864
+    },
+    "wilcoxon": {
+        "statistic": 5974513.0,
+        "p_value": 8.065049070299519e-74,
+        "effect_size": 0.23973344424630477
+    },
+    "bootstrap_ci": {
+        "lower": 0.052744871799939134,
+        "upper": 0.06462625186236952
+    }
+}

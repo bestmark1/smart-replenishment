@@ -1,0 +1,12 @@
+{
+    "sales_duplicates": 0,
+    "calendar_nulls": 7542,
+    "sales_nulls": 0,
+    "prices_nulls": 0,
+    "negative_sales_count": 0,
+    "negative_prices_count": 0,
+    "calendar_missing_days": 0,
+    "zero_sales_fraction": 0.6890182958703607,
+    "prices_records_for_sample_sku": 154,
+    "status": "PASSED"
+}
