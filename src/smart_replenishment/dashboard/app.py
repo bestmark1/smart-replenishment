@@ -138,11 +138,11 @@ else:
         # Create Plotly Chart
         fig = go.Figure()
         fig.add_trace(go.Scatter(
-            x=series_df["date"],
+            x=series_df["date"], 
             y=series_df["demand"],
             mode='lines+markers',
             name='Actual Demand',
-            line=dict(color='black', width=2),
+            line=dict(color='#00d2ff', width=2),
             marker=dict(size=5)
         ))
         fig.add_trace(go.Scatter(
